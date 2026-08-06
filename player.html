@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spine Player</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@esotericsoftware/spine-player@4.2/dist/iife/spine-player.css">
+<script src="https://cdn.jsdelivr.net/npm/@esotericsoftware/spine-player@4.2/dist/iife/spine-player.js"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: transparent; overflow: hidden; width: 100vw; height: 100vh; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#container { width: 100%; height: 100%; pointer-events: auto; }
+.spine-player { width: 100% !important; height: 100% !important; }
+.spine-player-controls, .spine-player-hover { display: none !important; }
+#err { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); color: #e74c3c; font: 14px sans-serif; text-align: center; }
+img, canvas { -webkit-user-drag: none; -khtml-user-drag: none; -moz-user-drag: none; -o-user-drag: none; user-drag: none; }
+</style>
+</head>
+<body>
+<div id="container"></div>
+<div id="err"></div>
+<script>
+// 우클릭 방지
+document.addEventListener("contextmenu", function(e) { e.preventDefault(); });
+// 드래그 방지
+document.addEventListener("dragstart", function(e) { e.preventDefault(); });
+// 키보드 단축키 방지 (Ctrl+S, Ctrl+U, Ctrl+Shift+I, F12)
+document.addEventListener("keydown", function(e) {
+    if (e.ctrlKey && (e.key === "s" || e.key === "u" || e.key === "S" || e.key === "U")) e.preventDefault();
+    if (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j" || e.key === "C" || e.key === "c")) e.preventDefault();
+    if (e.key === "F12") e.preventDefault();
+});
+var p = new URLSearchParams(window.location.search);
+var name = p.get("name") || "";
+var anim = p.get("anim") || "";
+var skinParam = p.get("skin") || "";
+var bg = p.get("bg") || "00000000";
+
+if (!name) {
+    document.getElementById("err").style.display = "block";
+    document.getElementById("err").textContent = "URL에 ?name=폴더명 이 필요합니다.";
+} else {
+    new spine.SpinePlayer("container", {
+        jsonUrl: name + "/" + name + ".json",
+        atlasUrl: name + "/" + name + ".atlas.txt",
+        animation: anim || undefined,
+        skin: skinParam || undefined,
+        backgroundColor: "#" + bg,
+        premultipliedAlpha: true,
+        showControls: false,
+        showLoading: true,
+        fitToCanvas: true,
+        success: function(player) {
+            // 스킨 처리: 지정된 스킨이 없으면 첫 번째 스킨 자동 적용
+            var skins = player.skeleton.data.skins;
+            if (!skinParam && skins.length > 0) {
+                // "default" 스킨이 비어있을 수 있으므로 첫 번째 non-default 스킨 시도
+                var skinToUse = null;
+                for (var i = 0; i < skins.length; i++) {
+                    if (skins[i].name !== "default") {
+                        skinToUse = skins[i];
+                        break;
+                    }
+                }
+                // non-default 스킨이 없으면 default 사용
+                if (!skinToUse) skinToUse = skins[0];
+                player.skeleton.setSkin(skinToUse);
+                player.skeleton.setSlotsToSetupPose();
+            }
+
+            // 애니메이션 처리
+            var anims = player.skeleton.data.animations;
+            if (anims.length === 0) return;
+
+            if (anim) {
+                player.animationState.setAnimation(0, anim, true);
+                return;
+            }
+
+            var currentIndex = 0;
+            player.animationState.setAnimation(0, anims[0].name, false);
+
+            player.animationState.addListener({
+                complete: function(entry) {
+                    currentIndex = (currentIndex + 1) % anims.length;
+                    player.animationState.setAnimation(0, anims[currentIndex].name, false);
+                }
+            });
+        },
+        error: function(player, msg) {
+            document.getElementById("err").style.display = "block";
+            document.getElementById("err").textContent = "로드 실패: " + msg;
+        }
+    });
+}
+</script>
+</body>
+</html>
